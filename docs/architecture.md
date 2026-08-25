@@ -2,8 +2,8 @@
 
 ## 技术栈
 
-- 工具链：mise + Bun 1.4.0，使用 `bun.lock`、Bun runtime、HTML bundler/HMR、test runner、内建 `.env` 加载、S3、密码哈希、WebSocket Pub/Sub 与 cron。
-- Web：React 19、React Router 7、TanStack Query、Tailwind CSS 4、shadcn/ui、Radix UI、Lucide；不使用 Vite。
+- 工具链：mise + Bun 1.4.0，使用 `bun.lock`、Bun runtime、HTML bundler/HMR、test runner、内建 `.env` 加载、S3、密码哈希、WebSocket Pub/Sub 与 cron；类型检查使用 TypeScript 7 原生 `tsc --noEmit`。
+- Web：React 19、TanStack Query 和产品专用 CSS；没有无效路由层或通用 UI 组件包。
 - API：Hono on Bun，`hc<AppType>` 端到端推导 Hono RPC 类型，`@hono/zod-validator` + Zod 4 校验边界输入。
 - 身份：Better Auth username + session + organization；角色为 `admin`、`teacher`、`student`，密码由 `Bun.password` 的 Argon2id 实现哈希与验证。
 - 数据：PostgreSQL 18、`pg` 连接池、Kysely 查询与 Migrator；运行时不依赖 MySQL。
@@ -37,6 +37,6 @@ Hono 中间件从 Better Auth session 取得当前用户，再从 organization m
 ## 运维边界
 
 - 应用进程内 `Bun.cron("@daily")` 适合当前单任务清理；多副本会重复扫描，但删除操作和状态更新保持幂等。任务量扩大后应迁移到带租约的独立 worker。
-- 本地 `bun run --hot` 同时提供 API、HTML bundler 和 HMR；生产构建由 `Bun.build` 和 `bun-plugin-tailwind` 生成 `dist`。
+- 本地 `bun run --hot` 同时提供 API、HTML bundler 和 HMR；生产构建由 `Bun.build` 生成 `dist`。
 - 生产容器启动时自动迁移；大版本或破坏性 schema 变更仍需遵循 expand/migrate/contract 并在发布窗口单独执行。
 - Better Auth secret、数据库口令、S3 凭据必须由部署平台注入，不能沿用示例值。

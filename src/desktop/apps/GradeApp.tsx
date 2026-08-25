@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api } from "@/providers/api";
+import { useExamStatsQuery, useExamsQuery, useMyGradesQuery } from "@/providers/api";
 import { useDesktop } from "../DesktopContext";
 
 export default function GradeApp() {
@@ -9,11 +9,11 @@ export default function GradeApp() {
 
 /* ================= 教师 / 管理员：考试统计 ================= */
 function ExamStats() {
-  const exams = api.exam.list.useQuery();
+  const exams = useExamsQuery();
   const published = (exams.data ?? []).filter((e) => e.status === "published");
   const [examId, setExamId] = useState<string | null>(null);
   const sel = examId ?? published[0]?.id ?? null;
-  const stats = api.grade.examStats.useQuery({ examId: sel ?? "" }, { enabled: sel !== null });
+  const stats = useExamStatsQuery(sel ?? "", { enabled: sel !== null });
 
   if (exams.isLoading)
     return (
@@ -140,7 +140,7 @@ function ExamStats() {
 
 /* ================= 学生：我的成绩 ================= */
 function MyGrades() {
-  const g = api.grade.myGrades.useQuery();
+  const g = useMyGradesQuery();
 
   if (g.isLoading)
     return (

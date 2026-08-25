@@ -1,24 +1,27 @@
-import { api } from "@/providers/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys, useLoginMutation, useLogoutMutation, useSessionQuery } from "@/providers/api";
 
 /** 校园账号会话（管理员/教师/学生） */
 export function useSession() {
-  const utils = api.useUtils();
-  const me = api.session.me.useQuery(undefined, {
+  const queryClient = useQueryClient();
+  const me = useSessionQuery({
     retry: false,
     staleTime: 30_000,
   });
 
-  const login = api.session.login.useMutation({
+  const login = useLoginMutation({
     onSuccess: async () => {
-      await utils.session.me.invalidate();
-      await utils.system.visibleApps.invalidate();
-      await utils.system.getPrefs.invalidate();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.session }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.visibleApps }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.preferences }),
+      ]);
     },
   });
 
-  const logout = api.session.logout.useMutation({
+  const logout = useLogoutMutation({
     onSuccess: async () => {
-      await utils.invalidate();
+      await queryClient.invalidateQueries();
     },
   });
 

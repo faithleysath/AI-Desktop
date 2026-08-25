@@ -33,7 +33,7 @@ async function unwrap<T>(response: {
   return data as T;
 }
 
-const calls = {
+const requests = {
   session: {
     me: async () => unwrap<SessionMe>(await client.api.session.me.$get()),
     login: async (input: { username: string; password: string }) => {
@@ -158,138 +158,289 @@ const calls = {
   },
 };
 
-function endpointQuery<I, O>(name: string, call: (input: I) => Promise<O>) {
-  return {
-    useQuery(input?: I, options?: Omit<UseQueryOptions<O, Error>, "queryKey" | "queryFn">) {
-      return useQuery({
-        queryKey: [name, input],
-        queryFn: () => call(input as I),
-        ...options,
-      });
-    },
-  };
-}
+type QueryOptions<T> = Omit<UseQueryOptions<T, Error>, "queryKey" | "queryFn">;
+type MutationOptions<I, O> = Omit<UseMutationOptions<O, Error, I>, "mutationKey" | "mutationFn">;
 
-function endpointMutation<I, O>(name: string, call: (input: I) => Promise<O>) {
-  return {
-    useMutation(options?: UseMutationOptions<O, Error, I>) {
-      return useMutation({ mutationKey: [name], mutationFn: call, ...options });
-    },
-  };
-}
-
-const queryNames = [
-  "session.me",
-  "dashboard.stats",
-  "message.list",
-  "system.visibleApps",
-  "system.getPrefs",
-  "system.listModules",
-  "system.listAccounts",
-  "exam.list",
-  "exam.questions",
-  "exam.take",
-  "exam.results",
-  "grade.examStats",
-  "grade.myGrades",
-  "file.list",
-] as const;
-
-export const api = {
-  session: {
-    me: endpointQuery<void, SessionMe>("session.me", calls.session.me),
-    login: endpointMutation("session.login", calls.session.login),
-    logout: endpointMutation<void, { success: boolean }>("session.logout", calls.session.logout),
-  },
-  dashboard: {
-    stats: endpointQuery<void, DashboardStats>("dashboard.stats", calls.dashboard.stats),
-  },
-  message: {
-    list: endpointQuery<void, Message[]>("message.list", calls.message.list),
-    publish: endpointMutation("message.publish", calls.message.publish),
-  },
-  system: {
-    visibleApps: endpointQuery<void, VisibleApp[]>("system.visibleApps", calls.system.visibleApps),
-    getPrefs: endpointQuery<void, Prefs>("system.getPrefs", calls.system.getPrefs),
-    setPrefs: endpointMutation("system.setPrefs", calls.system.setPrefs),
-    listModules: endpointQuery<void, Module[]>("system.listModules", calls.system.listModules),
-    setModule: endpointMutation("system.setModule", calls.system.setModule),
-    listAccounts: endpointQuery<void, Account[]>("system.listAccounts", calls.system.listAccounts),
-    createAccount: endpointMutation("system.createAccount", calls.system.createAccount),
-  },
-  exam: {
-    list: endpointQuery<void, ExamListItem[]>("exam.list", calls.exam.list),
-    create: endpointMutation("exam.create", calls.exam.create),
-    remove: endpointMutation("exam.remove", calls.exam.remove),
-    publish: endpointMutation("exam.publish", calls.exam.publish),
-    questions: endpointQuery("exam.questions", calls.exam.questions),
-    addQuestion: endpointMutation("exam.addQuestion", calls.exam.addQuestion),
-    removeQuestion: endpointMutation("exam.removeQuestion", calls.exam.removeQuestion),
-    take: endpointQuery("exam.take", calls.exam.take),
-    submit: endpointMutation("exam.submit", calls.exam.submit),
-    results: endpointQuery("exam.results", calls.exam.results),
-  },
-  grade: {
-    examStats: endpointQuery("grade.examStats", calls.grade.examStats),
-    myGrades: endpointQuery<void, MyGrades>("grade.myGrades", calls.grade.myGrades),
-  },
-  file: {
-    list: endpointQuery<void, FileEntry[]>("file.list", calls.file.list),
-    upload: endpointMutation("file.upload", calls.file.upload),
-    download: endpointMutation("file.download", calls.file.download),
-    remove: endpointMutation("file.remove", calls.file.remove),
-  },
-  useUtils() {
-    const queryClient = useQueryClient();
-    const invalidate = (name?: string) =>
-      queryClient.invalidateQueries(name ? { queryKey: [name] } : undefined);
-    const endpoint = (name: string) => ({
-      invalidate: (_input?: unknown) => invalidate(name),
-    });
-    return {
-      invalidate: () => invalidate(),
-      session: { me: endpoint("session.me") },
-      dashboard: { stats: endpoint("dashboard.stats") },
-      message: { list: endpoint("message.list") },
-      system: {
-        visibleApps: endpoint("system.visibleApps"),
-        getPrefs: endpoint("system.getPrefs"),
-        listModules: endpoint("system.listModules"),
-        listAccounts: endpoint("system.listAccounts"),
-      },
-      exam: {
-        list: endpoint("exam.list"),
-        questions: endpoint("exam.questions"),
-        results: endpoint("exam.results"),
-      },
-      grade: {
-        examStats: endpoint("grade.examStats"),
-        myGrades: endpoint("grade.myGrades"),
-      },
-      file: { list: endpoint("file.list") },
-    };
-  },
+export const queryKeys = {
+  session: ["session"] as const,
+  dashboard: ["dashboard"] as const,
+  messages: ["messages"] as const,
+  visibleApps: ["system", "apps"] as const,
+  preferences: ["system", "preferences"] as const,
+  modules: ["system", "modules"] as const,
+  accounts: ["system", "accounts"] as const,
+  exams: ["exams"] as const,
+  examQuestions: (examId?: string) =>
+    examId ? (["exams", "questions", examId] as const) : (["exams", "questions"] as const),
+  examTake: (examId: string) => ["exams", "take", examId] as const,
+  examResults: (examId?: string) =>
+    examId ? (["exams", "results", examId] as const) : (["exams", "results"] as const),
+  examStats: (examId?: string) =>
+    examId ? (["grades", "exams", examId] as const) : (["grades", "exams"] as const),
+  myGrades: ["grades", "mine"] as const,
+  files: ["files"] as const,
 };
 
-const invalidations: Record<EventType, string[]> = {
-  "announcement.created": ["message.list", "dashboard.stats"],
-  "exam.created": ["exam.list", "dashboard.stats"],
-  "exam.updated": ["exam.list", "exam.questions", "grade.examStats"],
-  "exam.published": ["exam.list", "dashboard.stats"],
-  "exam.deleted": ["exam.list", "dashboard.stats"],
+export function useSessionQuery(options?: QueryOptions<SessionMe>) {
+  return useQuery({ queryKey: queryKeys.session, queryFn: requests.session.me, ...options });
+}
+
+export function useLoginMutation(
+  options?: MutationOptions<{ username: string; password: string }, { success: boolean }>,
+) {
+  return useMutation({
+    mutationKey: ["session", "login"],
+    mutationFn: requests.session.login,
+    ...options,
+  });
+}
+
+export function useLogoutMutation(options?: MutationOptions<void, { success: boolean }>) {
+  return useMutation({
+    mutationKey: ["session", "logout"],
+    mutationFn: requests.session.logout,
+    ...options,
+  });
+}
+
+export function useDashboardStatsQuery(options?: QueryOptions<DashboardStats>) {
+  return useQuery({ queryKey: queryKeys.dashboard, queryFn: requests.dashboard.stats, ...options });
+}
+
+export function useMessagesQuery(options?: QueryOptions<Message[]>) {
+  return useQuery({ queryKey: queryKeys.messages, queryFn: requests.message.list, ...options });
+}
+
+export function usePublishMessageMutation(
+  options?: MutationOptions<{ title: string; content: string }, Message>,
+) {
+  return useMutation({
+    mutationKey: ["messages", "publish"],
+    mutationFn: requests.message.publish,
+    ...options,
+  });
+}
+
+export function useVisibleAppsQuery(options?: QueryOptions<VisibleApp[]>) {
+  return useQuery({
+    queryKey: queryKeys.visibleApps,
+    queryFn: requests.system.visibleApps,
+    ...options,
+  });
+}
+
+export function usePreferencesQuery(options?: QueryOptions<Prefs>) {
+  return useQuery({
+    queryKey: queryKeys.preferences,
+    queryFn: requests.system.getPrefs,
+    ...options,
+  });
+}
+
+export function useSetPreferencesMutation(
+  options?: MutationOptions<Partial<Prefs>, { success: boolean }>,
+) {
+  return useMutation({
+    mutationKey: ["system", "preferences", "update"],
+    mutationFn: requests.system.setPrefs,
+    ...options,
+  });
+}
+
+export function useModulesQuery(options?: QueryOptions<Module[]>) {
+  return useQuery({
+    queryKey: queryKeys.modules,
+    queryFn: requests.system.listModules,
+    ...options,
+  });
+}
+
+export function useSetModuleMutation(
+  options?: MutationOptions<{ moduleId: string; enabled: boolean }, { success: boolean }>,
+) {
+  return useMutation({
+    mutationKey: ["system", "modules", "update"],
+    mutationFn: requests.system.setModule,
+    ...options,
+  });
+}
+
+export function useAccountsQuery(options?: QueryOptions<Account[]>) {
+  return useQuery({
+    queryKey: queryKeys.accounts,
+    queryFn: requests.system.listAccounts,
+    ...options,
+  });
+}
+
+export function useCreateAccountMutation(
+  options?: MutationOptions<CreateAccountInput, { success: boolean; id: string }>,
+) {
+  return useMutation({
+    mutationKey: ["system", "accounts", "create"],
+    mutationFn: requests.system.createAccount,
+    ...options,
+  });
+}
+
+export function useExamsQuery(options?: QueryOptions<ExamListItem[]>) {
+  return useQuery({ queryKey: queryKeys.exams, queryFn: requests.exam.list, ...options });
+}
+
+export function useCreateExamMutation(options?: MutationOptions<CreateExamInput, { id: string }>) {
+  return useMutation({
+    mutationKey: ["exams", "create"],
+    mutationFn: requests.exam.create,
+    ...options,
+  });
+}
+
+export function useRemoveExamMutation(
+  options?: MutationOptions<{ examId: string }, { success: boolean }>,
+) {
+  return useMutation({
+    mutationKey: ["exams", "remove"],
+    mutationFn: requests.exam.remove,
+    ...options,
+  });
+}
+
+export function usePublishExamMutation(
+  options?: MutationOptions<{ examId: string }, { success: boolean }>,
+) {
+  return useMutation({
+    mutationKey: ["exams", "publish"],
+    mutationFn: requests.exam.publish,
+    ...options,
+  });
+}
+
+export function useExamQuestionsQuery(examId: string, options?: QueryOptions<Question[]>) {
+  return useQuery({
+    queryKey: queryKeys.examQuestions(examId),
+    queryFn: () => requests.exam.questions({ examId }),
+    ...options,
+  });
+}
+
+export function useAddQuestionMutation(
+  options?: MutationOptions<AddQuestionInput, { success: boolean }>,
+) {
+  return useMutation({
+    mutationKey: ["exams", "questions", "add"],
+    mutationFn: requests.exam.addQuestion,
+    ...options,
+  });
+}
+
+export function useRemoveQuestionMutation(
+  options?: MutationOptions<{ questionId: string }, { success: boolean }>,
+) {
+  return useMutation({
+    mutationKey: ["exams", "questions", "remove"],
+    mutationFn: requests.exam.removeQuestion,
+    ...options,
+  });
+}
+
+export function useTakeExamQuery(
+  examId: string,
+  options?: QueryOptions<{ exam: Exam; questions: TakeQuestion[] }>,
+) {
+  return useQuery({
+    queryKey: queryKeys.examTake(examId),
+    queryFn: () => requests.exam.take({ examId }),
+    ...options,
+  });
+}
+
+export function useSubmitExamMutation(
+  options?: MutationOptions<
+    { examId: string; answers: Record<string, Option> },
+    { score: number; totalScore: number }
+  >,
+) {
+  return useMutation({
+    mutationKey: ["exams", "submit"],
+    mutationFn: requests.exam.submit,
+    ...options,
+  });
+}
+
+export function useExamResultsQuery(
+  examId: string,
+  options?: QueryOptions<{ exam: Exam; rows: ResultRow[] }>,
+) {
+  return useQuery({
+    queryKey: queryKeys.examResults(examId),
+    queryFn: () => requests.exam.results({ examId }),
+    ...options,
+  });
+}
+
+export function useExamStatsQuery(examId: string, options?: QueryOptions<ExamStats>) {
+  return useQuery({
+    queryKey: queryKeys.examStats(examId),
+    queryFn: () => requests.grade.examStats({ examId }),
+    ...options,
+  });
+}
+
+export function useMyGradesQuery(options?: QueryOptions<MyGrades>) {
+  return useQuery({ queryKey: queryKeys.myGrades, queryFn: requests.grade.myGrades, ...options });
+}
+
+export function useFilesQuery(options?: QueryOptions<FileEntry[]>) {
+  return useQuery({ queryKey: queryKeys.files, queryFn: requests.file.list, ...options });
+}
+
+export function useUploadFileMutation(options?: MutationOptions<File, FileEntry>) {
+  return useMutation({
+    mutationKey: ["files", "upload"],
+    mutationFn: requests.file.upload,
+    ...options,
+  });
+}
+
+export function useDownloadFileMutation(
+  options?: MutationOptions<{ id: string }, { downloadUrl: string; expiresIn: number }>,
+) {
+  return useMutation({
+    mutationKey: ["files", "download"],
+    mutationFn: requests.file.download,
+    ...options,
+  });
+}
+
+export function useRemoveFileMutation(
+  options?: MutationOptions<{ id: string }, { success: boolean }>,
+) {
+  return useMutation({
+    mutationKey: ["files", "remove"],
+    mutationFn: requests.file.remove,
+    ...options,
+  });
+}
+
+const invalidations: Record<EventType, readonly (readonly string[])[]> = {
+  "announcement.created": [queryKeys.messages, queryKeys.dashboard],
+  "exam.created": [queryKeys.exams, queryKeys.dashboard],
+  "exam.updated": [queryKeys.exams, queryKeys.examQuestions(), queryKeys.examStats()],
+  "exam.published": [queryKeys.exams, queryKeys.dashboard],
+  "exam.deleted": [queryKeys.exams, queryKeys.dashboard],
   "exam.submitted": [
-    "exam.list",
-    "exam.results",
-    "grade.examStats",
-    "grade.myGrades",
-    "dashboard.stats",
+    queryKeys.exams,
+    queryKeys.examResults(),
+    queryKeys.examStats(),
+    queryKeys.myGrades,
+    queryKeys.dashboard,
   ],
-  "module.updated": ["system.visibleApps", "system.listModules"],
-  "prefs.updated": ["system.getPrefs"],
-  "account.created": ["system.listAccounts", "dashboard.stats"],
-  "file.upload-requested": ["file.list"],
-  "file.ready": ["file.list"],
-  "file.deleted": ["file.list"],
+  "module.updated": [queryKeys.visibleApps, queryKeys.modules],
+  "prefs.updated": [queryKeys.preferences],
+  "account.created": [queryKeys.accounts, queryKeys.dashboard],
+  "file.upload-requested": [queryKeys.files],
+  "file.ready": [queryKeys.files],
+  "file.deleted": [queryKeys.files],
 };
 
 function RealtimeInvalidator() {
@@ -310,8 +461,8 @@ function RealtimeInvalidator() {
         if (oldest) seen.current.delete(oldest);
       }
       cursor.current = Math.max(cursor.current, Number(parsed.data.sequence));
-      for (const key of invalidations[parsed.data.type])
-        void queryClient.invalidateQueries({ queryKey: [key] });
+      for (const queryKey of invalidations[parsed.data.type])
+        void queryClient.invalidateQueries({ queryKey });
     };
     const scheduleReconnect = () => {
       if (stopped) return;
@@ -355,7 +506,7 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 15_000, retry: 1 } },
 });
 
-export function ApiProvider({ children }: { children: ReactNode }) {
+export function DataProvider({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <RealtimeInvalidator />
@@ -518,5 +669,3 @@ interface FileEntry {
   updatedAt: string;
   deletedAt: string | null;
 }
-
-void queryNames;

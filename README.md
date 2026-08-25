@@ -42,7 +42,7 @@ mise exec -- bun run db:rollback
 mise exec -- bun run storage:cleanup
 ```
 
-`bun run test` 使用 `bun run --parallel` 并行执行服务端单元/API 测试和 Testing Library 组件测试。首次运行浏览器测试前执行 `mise exec -- bunx playwright install chromium`。
+`bun run test` 执行 Bun 单元/API 测试；浏览器业务流程由 Playwright 覆盖。首次运行浏览器测试前执行 `mise exec -- bunx playwright install chromium`。
 
 ## 生产容器
 

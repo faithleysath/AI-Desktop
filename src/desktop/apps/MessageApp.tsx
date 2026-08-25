@@ -1,24 +1,25 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { api } from "@/providers/api";
+import { queryKeys, useMessagesQuery, usePublishMessageMutation } from "@/providers/api";
 import { useDesktop } from "../DesktopContext";
 
 export default function MessageApp() {
   const { role, toast } = useDesktop();
   const canPublish = role === "admin" || role === "teacher";
-  const utils = api.useUtils();
-  const list = api.message.list.useQuery();
+  const queryClient = useQueryClient();
+  const list = useMessagesQuery();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [showForm, setShowForm] = useState(false);
 
-  const publish = api.message.publish.useMutation({
+  const publish = usePublishMessageMutation({
     onSuccess: () => {
       toast("公告已发布 ✅");
       setTitle("");
       setContent("");
       setShowForm(false);
-      utils.message.list.invalidate();
-      utils.dashboard.stats.invalidate();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.messages });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
     },
     onError: (e) => toast(e.message),
   });

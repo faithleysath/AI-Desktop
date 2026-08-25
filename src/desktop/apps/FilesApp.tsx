@@ -1,5 +1,12 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
-import { api } from "@/providers/api";
+import {
+  queryKeys,
+  useDownloadFileMutation,
+  useFilesQuery,
+  useRemoveFileMutation,
+  useUploadFileMutation,
+} from "@/providers/api";
 import { useDesktop } from "../DesktopContext";
 
 function formatBytes(size: number | string) {
@@ -12,24 +19,24 @@ function formatBytes(size: number | string) {
 export default function FilesApp() {
   const { toast } = useDesktop();
   const inputRef = useRef<HTMLInputElement>(null);
-  const utils = api.useUtils();
-  const files = api.file.list.useQuery();
-  const upload = api.file.upload.useMutation({
+  const queryClient = useQueryClient();
+  const files = useFilesQuery();
+  const upload = useUploadFileMutation({
     onSuccess: () => {
       toast("文件已上传 ✅");
       if (inputRef.current) inputRef.current.value = "";
-      void utils.file.list.invalidate();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.files });
     },
     onError: (error) => toast(error.message),
   });
-  const remove = api.file.remove.useMutation({
+  const remove = useRemoveFileMutation({
     onSuccess: () => {
       toast("文件已删除");
-      void utils.file.list.invalidate();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.files });
     },
     onError: (error) => toast(error.message),
   });
-  const download = api.file.download.useMutation({
+  const download = useDownloadFileMutation({
     onSuccess: ({ downloadUrl }) => window.open(downloadUrl, "_blank", "noopener,noreferrer"),
     onError: (error) => toast(error.message),
   });

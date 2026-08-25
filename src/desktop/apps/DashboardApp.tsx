@@ -1,9 +1,9 @@
-import { api } from "@/providers/api";
+import { useDashboardStatsQuery } from "@/providers/api";
 import { useDesktop } from "../DesktopContext";
 
 export default function DashboardApp() {
   const { accountName, tenantName, role } = useDesktop();
-  const stats = api.dashboard.stats.useQuery();
+  const stats = useDashboardStatsQuery();
 
   const h = new Date().getHours();
   const greet =

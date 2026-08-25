@@ -18,6 +18,5 @@
       "@db/*": ["./db/*"]
     }
   },
-  "include": ["src", "server", "db", "contracts", "scripts", "tests"],
-  "exclude": ["src/components/AuthLayout.tsx", "src/hooks/useAuth.ts", "src/pages", "api"]
+  "include": ["src", "server", "db", "contracts", "scripts", "tests"]
 }

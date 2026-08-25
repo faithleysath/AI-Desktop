@@ -1,5 +1,18 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { api } from "@/providers/api";
+import {
+  queryKeys,
+  useAddQuestionMutation,
+  useCreateExamMutation,
+  useExamQuestionsQuery,
+  useExamResultsQuery,
+  useExamsQuery,
+  usePublishExamMutation,
+  useRemoveExamMutation,
+  useRemoveQuestionMutation,
+  useSubmitExamMutation,
+  useTakeExamQuery,
+} from "@/providers/api";
 import { useDesktop } from "../DesktopContext";
 
 const OPTS = ["A", "B", "C", "D"] as const;
@@ -21,8 +34,8 @@ export default function ExamApp() {
 /* ================= 教师 / 管理员视角 ================= */
 function TeacherExam() {
   const { toast } = useDesktop();
-  const utils = api.useUtils();
-  const list = api.exam.list.useQuery();
+  const queryClient = useQueryClient();
+  const list = useExamsQuery();
   const [view, setView] = useState<
     | { kind: "list" }
     | { kind: "create" }
@@ -32,11 +45,11 @@ function TeacherExam() {
   const [q, setQ] = useState("");
 
   const refresh = () => {
-    utils.exam.list.invalidate();
-    utils.dashboard.stats.invalidate();
+    void queryClient.invalidateQueries({ queryKey: queryKeys.exams });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
   };
 
-  const create = api.exam.create.useMutation({
+  const create = useCreateExamMutation({
     onSuccess: (r) => {
       toast("考试已创建，请添加试题");
       refresh();
@@ -44,14 +57,14 @@ function TeacherExam() {
     },
     onError: (e) => toast(e.message),
   });
-  const publish = api.exam.publish.useMutation({
+  const publish = usePublishExamMutation({
     onSuccess: () => {
       toast("考试已发布 ✅");
       refresh();
     },
     onError: (e) => toast(e.message),
   });
-  const remove = api.exam.remove.useMutation({
+  const remove = useRemoveExamMutation({
     onSuccess: () => {
       toast("草稿已删除");
       refresh();
@@ -292,19 +305,19 @@ function QuestionEditor({
   onBack: () => void;
 }) {
   const { toast } = useDesktop();
-  const utils = api.useUtils();
-  const qs = api.exam.questions.useQuery({ examId });
+  const queryClient = useQueryClient();
+  const qs = useExamQuestionsQuery(examId);
   const [stem, setStem] = useState("");
   const [opts, setOpts] = useState(["", "", "", ""]);
   const [answer, setAnswer] = useState<OptKey>("A");
   const [score, setScore] = useState(20);
 
   const refresh = () => {
-    utils.exam.questions.invalidate({ examId });
-    utils.exam.list.invalidate();
+    void queryClient.invalidateQueries({ queryKey: queryKeys.examQuestions(examId) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.exams });
   };
 
-  const add = api.exam.addQuestion.useMutation({
+  const add = useAddQuestionMutation({
     onSuccess: () => {
       setStem("");
       setOpts(["", "", "", ""]);
@@ -314,11 +327,11 @@ function QuestionEditor({
     },
     onError: (e) => toast(e.message),
   });
-  const removeQ = api.exam.removeQuestion.useMutation({
+  const removeQ = useRemoveQuestionMutation({
     onSuccess: refresh,
     onError: (e) => toast(e.message),
   });
-  const publish = api.exam.publish.useMutation({
+  const publish = usePublishExamMutation({
     onSuccess: () => {
       toast("考试已发布 ✅");
       onBack();
@@ -445,7 +458,7 @@ function QuestionEditor({
 }
 
 function Results({ examId, onBack }: { examId: string; onBack: () => void }) {
-  const r = api.exam.results.useQuery({ examId });
+  const r = useExamResultsQuery(examId);
   return (
     <div className="app">
       <div className="toolbar">
@@ -494,8 +507,8 @@ function Results({ examId, onBack }: { examId: string; onBack: () => void }) {
 
 /* ================= 学生视角 ================= */
 function StudentExam() {
-  const utils = api.useUtils();
-  const list = api.exam.list.useQuery();
+  const queryClient = useQueryClient();
+  const list = useExamsQuery();
   const [taking, setTaking] = useState<string | null>(null);
   const [done, setDone] = useState<{
     score: number;
@@ -510,9 +523,9 @@ function StudentExam() {
         onDone={(r) => {
           setDone(r);
           setTaking(null);
-          utils.exam.list.invalidate();
-          utils.grade.myGrades.invalidate();
-          utils.dashboard.stats.invalidate();
+          void queryClient.invalidateQueries({ queryKey: queryKeys.exams });
+          void queryClient.invalidateQueries({ queryKey: queryKeys.myGrades });
+          void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
         }}
       />
     );
@@ -590,10 +603,10 @@ function TakeExam({
   onDone: (r: { score: number; totalScore: number }) => void;
 }) {
   const { toast } = useDesktop();
-  const take = api.exam.take.useQuery({ examId }, { retry: false });
+  const take = useTakeExamQuery(examId, { retry: false });
   const [answers, setAnswers] = useState<Record<string, OptKey>>({});
 
-  const submit = api.exam.submit.useMutation({
+  const submit = useSubmitExamMutation({
     onSuccess: (r) => onDone(r),
     onError: (e) => toast(e.message),
   });

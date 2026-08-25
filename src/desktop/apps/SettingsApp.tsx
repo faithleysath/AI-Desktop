@@ -1,6 +1,13 @@
 import { ROLE_NAMES, type Role } from "@contracts/apps";
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { api } from "@/providers/api";
+import {
+  queryKeys,
+  useAccountsQuery,
+  useCreateAccountMutation,
+  useModulesQuery,
+  useSetModuleMutation,
+} from "@/providers/api";
 import { useDesktop } from "../DesktopContext";
 
 type Page = "general" | "accounts" | "modules" | "about";
@@ -122,12 +129,12 @@ function General() {
 
 function Modules() {
   const { toast, openApp } = useDesktop();
-  const utils = api.useUtils();
-  const mods = api.system.listModules.useQuery();
-  const setModule = api.system.setModule.useMutation({
+  const queryClient = useQueryClient();
+  const mods = useModulesQuery();
+  const setModule = useSetModuleMutation({
     onSuccess: (_, v) => {
-      utils.system.visibleApps.invalidate();
-      utils.system.listModules.invalidate();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.visibleApps });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.modules });
       toast(v.enabled ? "模块已开通 ✅" : "模块已停用");
     },
     onError: (e) => toast(e.message),
@@ -191,22 +198,22 @@ function Modules() {
 
 function Accounts() {
   const { toast } = useDesktop();
-  const utils = api.useUtils();
-  const list = api.system.listAccounts.useQuery();
+  const queryClient = useQueryClient();
+  const list = useAccountsQuery();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<Role>("student");
   const [showForm, setShowForm] = useState(false);
 
-  const create = api.system.createAccount.useMutation({
+  const create = useCreateAccountMutation({
     onSuccess: () => {
       toast("账号已创建 ✅");
       setUsername("");
       setPassword("");
       setName("");
       setShowForm(false);
-      utils.system.listAccounts.invalidate();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
     },
     onError: (e) => toast(e.message),
   });

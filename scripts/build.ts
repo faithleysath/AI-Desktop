@@ -1,7 +1,4 @@
-import { rm } from "node:fs/promises";
-import tailwind from "bun-plugin-tailwind";
-
-await rm("dist", { recursive: true, force: true });
+await Bun.$`rm -rf dist`;
 
 const result = await Bun.build({
   entrypoints: ["./server/index.ts"],
@@ -9,7 +6,6 @@ const result = await Bun.build({
   target: "bun",
   minify: true,
   sourcemap: "external",
-  plugins: [tailwind],
   naming: {
     entry: "[name].[ext]",
     chunk: "[name]-[hash].[ext]",
@@ -29,3 +25,5 @@ if (!result.success) {
 }
 
 console.log(`Built ${result.outputs.length} output files.`);
+
+export {};

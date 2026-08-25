@@ -1,6 +1,11 @@
 import { type AppManifest, ROLE_NAMES } from "@contracts/apps";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "@/providers/api";
+import {
+  useMessagesQuery,
+  usePreferencesQuery,
+  useSetPreferencesMutation,
+  useVisibleAppsQuery,
+} from "@/providers/api";
 import DashboardApp from "./apps/DashboardApp";
 import ExamApp from "./apps/ExamApp";
 import FilesApp from "./apps/FilesApp";
@@ -176,9 +181,9 @@ function Shell({
   tenantName: string;
   onLogout: () => void;
 }) {
-  const appsQ = api.system.visibleApps.useQuery();
-  const prefsQ = api.system.getPrefs.useQuery();
-  const msgsQ = api.message.list.useQuery();
+  const appsQ = useVisibleAppsQuery();
+  const prefsQ = usePreferencesQuery();
+  const msgsQ = useMessagesQuery();
   const apps = useMemo(() => appsQ.data ?? [], [appsQ.data]);
 
   /* ---------- 偏好（云端漫游） ---------- */
@@ -190,21 +195,21 @@ function Shell({
       setDockAH(prefsQ.data.dockAutoHide);
     }
   }, [prefsQ.data]);
-  const setPrefs = api.system.setPrefs.useMutation();
+  const setPrefs = useSetPreferencesMutation();
   const setWallpaper = useCallback(
     (i: number) => {
       setWp(i);
       setPrefs.mutate({ wallpaper: i });
     },
     [setPrefs.mutate],
-  ); // eslint-disable-line
+  );
   const setDockAutoHide = useCallback(
     (v: boolean) => {
       setDockAH(v);
       setPrefs.mutate({ dockAutoHide: v });
     },
     [setPrefs.mutate],
-  ); // eslint-disable-line
+  );
 
   /* ---------- Toast ---------- */
   const [toastMsg, setToastMsg] = useState("");
