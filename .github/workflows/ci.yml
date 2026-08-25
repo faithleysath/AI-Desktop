@@ -38,7 +38,9 @@ jobs:
           mise exec -- bun --version | grep '^1\.4\.0$'
 
       - name: Start PostgreSQL and private object storage
-        run: docker compose up -d --wait postgres minio minio-init
+        run: |
+          docker compose up -d --wait postgres minio
+          docker compose up --no-deps minio-init
 
       - name: Migrate and seed
         run: |

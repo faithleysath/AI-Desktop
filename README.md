@@ -15,7 +15,8 @@ Bun 固定为 `1.4.0`。`mise.lock` 同时锁定 macOS ARM64 与 Linux x64，不
 mise install --locked bun@1.4.0
 mise run install
 cp .env.example .env
-docker compose up -d --wait postgres minio minio-init
+docker compose up -d --wait postgres minio
+docker compose up --no-deps minio-init
 mise exec -- bun run db:migrate
 mise exec -- bun run db:seed
 mise run dev
