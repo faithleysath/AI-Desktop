@@ -3,3 +3,8 @@ dist
 .git
 *.swp
 *.log
+.env*
+coverage
+playwright-report
+test-results
+.DS_Store

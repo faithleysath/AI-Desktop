@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DATABASE_URL: postgres://edudesk:edudesk@127.0.0.1:54329/edudesk
+      BETTER_AUTH_URL: http://127.0.0.1:3000
+      BETTER_AUTH_SECRET: ci-only-secret-with-at-least-32-characters
+      S3_ENDPOINT: http://127.0.0.1:9000
+      S3_PUBLIC_ENDPOINT: http://127.0.0.1:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: edudesk-private
+      S3_ACCESS_KEY_ID: edudesk
+      S3_SECRET_ACCESS_KEY: edudesk-secret
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v3
+        with:
+          install: false
+          cache: true
+
+      - name: Install locked Bun toolchain and dependencies
+        run: |
+          mise install --locked bun@1.4.0
+          mise exec -- bun install --frozen-lockfile
+          mise exec -- bun --version | grep '^1\.4\.0$'
+
+      - name: Start PostgreSQL and private object storage
+        run: docker compose up -d --wait postgres minio minio-init
+
+      - name: Migrate and seed
+        run: |
+          mise exec -- bun run db:migrate
+          mise exec -- bun run db:migrate
+          mise exec -- bun run db:seed
+          mise exec -- bun run db:seed
+
+      - name: Type, lint, unit, component and production build
+        run: mise exec -- bun run check
+
+      - name: Verify cross-instance realtime delivery
+        run: mise exec -- bun run test:double-instance
+
+      - name: Install browser
+        run: mise exec -- bunx playwright install --with-deps chromium
+
+      - name: Browser acceptance
+        run: mise exec -- bun run test:e2e
+
+      - name: Build production image
+        run: docker compose --profile production build app
+
+      - name: Upload browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-diagnostics
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore

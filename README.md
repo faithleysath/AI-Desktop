@@ -1,73 +1,55 @@
-# React + TypeScript + Vite
+# EduDesk
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+EduDesk 是一个面向学校的多租户 Web 桌面。当前技术栈以 Bun 为唯一 JavaScript 工具链：React 19 前端由 Bun HTML bundler 构建并热更新，Hono 提供类型安全 RPC，Better Auth 管理账号、会话与组织角色，Kysely 访问 PostgreSQL；私有文件直传 S3 兼容对象存储，实时事件通过事务 outbox、PostgreSQL `LISTEN/NOTIFY` 和 Bun 原生 WebSocket Pub/Sub 分发。
 
-Currently, two official plugins are available:
+## 环境要求
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- [mise](https://mise.jdx.dev/)
+- Docker / Docker Compose
 
-## React Compiler
+Bun 固定为 `1.4.0`。`mise.lock` 同时锁定 macOS ARM64 与 Linux x64，不再使用 `.bun-version` 或其他包管理器。
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 本地启动
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+mise install --locked bun@1.4.0
+mise run install
+cp .env.example .env
+docker compose up -d --wait postgres minio minio-init
+mise exec -- bun run db:migrate
+mise exec -- bun run db:seed
+mise run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+打开 <http://127.0.0.1:3000>。演示账号：
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+| 角色 | 用户名 | 密码 |
+| --- | --- | --- |
+| 管理员 | `admin` | `admin123` |
+| 教师 | `teacher` | `teacher123` |
+| 学生 | `student` | `student123` |
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+这些账号只用于本地演示，不应部署到生产环境。
+
+## 常用命令
+
+```bash
+mise run check                    # 类型、Biome、Bun 测试与生产构建
+mise exec -- bun run test:e2e     # Playwright 业务验收
+mise exec -- bun run test:double-instance
+mise exec -- bun run db:rollback
+mise exec -- bun run storage:cleanup
 ```
+
+`bun run test` 使用 `bun run --parallel` 并行执行服务端单元/API 测试和 Testing Library 组件测试。首次运行浏览器测试前执行 `mise exec -- bunx playwright install chromium`。
+
+## 生产容器
+
+```bash
+docker compose --profile production up -d --build --wait
+curl --fail http://127.0.0.1:3000/api/health
+```
+
+镜像固定基于 `oven/bun:1.4.0`，启动时先执行 Kysely migration。部署前必须替换 Compose 中的演示密钥和口令，并将 `S3_PUBLIC_ENDPOINT` 设置为浏览器可访问的 HTTPS 地址。
+
+架构与一致性边界见 [docs/architecture.md](docs/architecture.md)。项目尚未发布，数据库变更允许直接回滚或重建，不提供旧 MySQL 数据导入与兼容层。

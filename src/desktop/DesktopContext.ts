@@ -1,5 +1,5 @@
-import { createContext, useContext } from "react";
 import type { Role } from "@contracts/apps";
+import { createContext, useContext } from "react";
 
 export interface DesktopCtx {
   toast: (msg: string) => void;
