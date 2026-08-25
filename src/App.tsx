@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router";
+import { Route, Routes } from "react-router";
 import Desktop from "./desktop/Desktop";
 
 export default function App() {
